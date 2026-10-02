@@ -1,0 +1,188 @@
+{
+  "enabled": {
+    "description": "启用插件",
+    "hint": "关闭后 /gh 指令与轮询都不再响应。",
+    "type": "bool",
+    "default": true
+  },
+  "github_token": {
+    "description": "GitHub Token",
+    "hint": "用于调 GitHub REST API。留空则匿名访问（60 次/小时，按出口 IP）；带 token 为 5000 次/小时。建议只给 public_repo 权限。需 WebUI ≥ 4.28.0 才会渲染成密码框，存储仍是明文。",
+    "type": "string",
+    "secret": true,
+    "default": ""
+  },
+  "repos": {
+    "description": "关注的仓库",
+    "hint": "每条一个 owner/repo，可分别开关 issue 与 PR 监听。抓取一律用上游 slug（本地 fork 抓会漏数据）。",
+    "type": "template_list",
+    "default": [],
+    "templates": {
+      "repo": {
+        "name": "仓库",
+        "hint": "填写 owner/repo，例如 AstrBotDevs/AstrBot。",
+        "display_item": "repo",
+        "items": {
+          "repo": {
+            "description": "仓库",
+            "type": "string",
+            "default": ""
+          },
+          "watch_issues": {
+            "description": "监听 issue",
+            "type": "bool",
+            "default": true
+          },
+          "watch_prs": {
+            "description": "监听 PR",
+            "type": "bool",
+            "default": true
+          }
+        }
+      }
+    }
+  },
+  "notify_targets": {
+    "description": "通知会话",
+    "hint": "发现新条目时推送到哪些会话。一般不用手填，用 /gh watch on 把当前会话加进去、/gh watch off 移除。",
+    "type": "list",
+    "default": []
+  },
+  "poll_enabled": {
+    "description": "启用轮询",
+    "hint": "开=插件加载时自动注册定时任务。关掉后仍可用 /gh fetch 手动拉取。",
+    "type": "bool",
+    "default": false
+  },
+  "poll_cron": {
+    "description": "轮询周期（cron）",
+    "hint": "五段式 cron，例如 */10 * * * * 表示每 10 分钟。改完重载插件生效。",
+    "type": "string",
+    "default": "*/10 * * * *"
+  },
+  "chat_provider_id": {
+    "description": "分析用模型",
+    "hint": "抓取后由该模型产出评论草稿；留空则 /gh t 会提示未配置。",
+    "type": "string",
+    "_special": "select_provider",
+    "default": ""
+  },
+  "dry_run": {
+    "description": "只出草稿不发布",
+    "hint": "开着时所有发布动作都被拦住，只能把草稿发回会话。建议常开，发布再临时用 /gh post --force。",
+    "type": "bool",
+    "default": true
+  },
+  "review_mode": {
+    "description": "PR 用正式 review",
+    "hint": "开=走 POST /pulls/{n}/reviews；关=走普通 issue comment。注意非协作者提交的 REQUEST_CHANGES 不计入合并门槛。",
+    "type": "bool",
+    "default": false
+  },
+  "review_event": {
+    "description": "PR review 类型",
+    "hint": "REQUEST_CHANGES 表示请求修改；COMMENT 表示仅评论。仅在上面的开关打开时生效。",
+    "type": "string",
+    "options": ["COMMENT", "REQUEST_CHANGES"],
+    "labels": ["仅评论", "请求修改"],
+    "default": "COMMENT"
+  },
+  "include_sections": {
+    "description": "评论包含的章节",
+    "hint": "控制模型产出哪些章节。未勾选的章节不会出现在评论里。",
+    "type": "list",
+    "options": ["blocking", "important", "verdict", "strengths", "minor", "questions", "security", "test_coverage"],
+    "labels": ["阻断项", "重要问题", "结论", "优点", "次要问题", "待确认问题", "安全清单", "测试覆盖"],
+    "render_type": "checkbox",
+    "default": ["blocking", "important", "verdict"]
+  },
+  "disclosure": {
+    "description": "AI 声明",
+    "hint": "发布时自动补到评论末尾（已存在则不重复添加）。留空表示不加。",
+    "type": "text",
+    "editor_mode": true,
+    "editor_language": "markdown",
+    "default": "> 🤖 本评论由 AI 生成，结论已基于仓库代码核实；如有出入，以维护者判断为准。"
+  },
+  "enable_tools": {
+    "description": "让模型用工具看代码",
+    "hint": "仅 PR 且下面配了本地仓库路径时生效：插件会为这个 PR 建独立 worktree，模型可读文件、搜代码、看目录，不再只对着 diff 猜。",
+    "type": "bool",
+    "default": true
+  },
+  "allow_local_commands": {
+    "description": "允许模型跑本地检查命令",
+    "hint": "开启后模型可执行白名单命令（ruff check / ruff format --check / pytest / git show / git log），不经过 shell，带超时。注意：pytest 会执行该 PR 的测试代码，只在你信任待审仓库时打开。",
+    "type": "bool",
+    "default": false
+  },
+  "local_python": {
+    "description": "检查命令用的解释器",
+    "hint": "留空则用 AstrBot 自己的解释器。待审仓库的依赖通常装在自己的虚拟环境里；填上它的 python 绝对路径，pytest / ruff 才不会一堆 import 错误。",
+    "type": "string",
+    "default": ""
+  },
+  "tool_max_steps": {
+    "description": "工具循环步数上限",
+    "hint": "模型最多调用几轮工具。调大更细但更慢更贵。",
+    "type": "int",
+    "slider": {
+      "min": 4,
+      "max": 40,
+      "step": 2
+    },
+    "default": 12
+  },
+  "max_diff_chars": {
+    "description": "diff 截断上限",
+    "hint": "送进模型的 diff 最大字符数，超出按文件截断并在草稿里注明。大 PR 调小可省钱。",
+    "type": "int",
+    "slider": { "min": 5000, "max": 200000, "step": 5000 },
+    "default": 60000
+  },
+  "local_paths": {
+    "description": "本地仓库路径",
+    "hint": "可选。配了之后审 PR 时用独立 worktree 还原改动、让模型读代码；不配就只做静态审查。远端名默认 origin，本地是 fork 时填 upstream。",
+    "type": "template_list",
+    "default": [],
+    "templates": {
+      "path": {
+        "name": "本地路径",
+        "hint": "clone 在本机的绝对路径，例如 D:/code/AstrBot。",
+        "display_item": "repo",
+        "items": {
+          "repo": {
+            "description": "对应的 owner/repo",
+            "type": "string",
+            "default": ""
+          },
+          "path": {
+            "description": "本地路径",
+            "type": "string",
+            "default": ""
+          },
+          "remote": {
+            "description": "远端名",
+            "type": "string",
+            "default": "origin"
+          }
+        }
+      }
+    }
+  },
+  "max_items_per_poll": {
+    "description": "单次轮询上限",
+    "hint": "一次轮询最多处理多少条新条目，防止首次接入时刷屏。",
+    "type": "int",
+    "slider": { "min": 1, "max": 50, "step": 1 },
+    "default": 5
+  },
+  "log_level": {
+    "description": "日志级别",
+    "hint": "作用到本插件专属 logger（AstrBot ≥ 4.26.8）；更低版本不会改全局级别。",
+    "type": "string",
+    "options": ["debug", "info", "warning", "error"],
+    "labels": ["调试", "信息", "警告", "错误"],
+    "default": "info"
+  }
+}

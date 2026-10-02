@@ -1,0 +1,33 @@
+name: astrbot_plugin_github_triage
+display_name: GitHub 审阅助手
+desc: 轮询关注仓库的新 issue / PR，自动抓取正文与 diff、核查代码、按仓库专属格式产出评论草稿，确认后再发布到 GitHub。
+short_desc: 把新 issue / PR 变成能直接发的评论草稿
+version: v0.1.1
+author: lingyun14beta
+repo: https://github.com/lingyun14beta/astrbot_plugin_github_triage
+astrbot_version: ">=4.14.0"
+tags:
+  - github
+  - review
+  - triage
+  - automation
+
+support_platforms:
+  - aiocqhttp
+  - qq_official
+  - qq_official_webhook
+  - telegram
+  - wecom
+  - wecom_ai_bot
+  - lark
+  - dingtalk
+  - discord
+  - slack
+  - kook
+  - weixin_official_account
+  - weixin_oc
+  - satori
+  - misskey
+  - line
+  - matrix
+  - mattermost
