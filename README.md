@@ -99,7 +99,7 @@ git clone https://github.com/lingyun14beta/astrbot_plugin_github_triage
 | `review_mode` / `review_event` | 关 / `COMMENT` | PR 走正式 review 还是普通评论 |
 | `include_sections` | `blocking, important, verdict` | 评论要哪些章节：阻断项 / 重要问题 / 结论 / 优点 / 次要问题 / 待确认问题 / 安全清单 / 测试覆盖 |
 | `disclosure` | 内置 | 发布时自动补到末尾的 AI 声明，留空则不加 |
-| `local_paths` | 空 | `owner/repo` → 本地 clone 路径（可选填远端名，默认 `origin`，本地是 fork 就填 `upstream`）。配了才能让模型读代码 |
+| `local_paths` | 空 | `owner/repo` → 本地 clone 路径（可选填远端名，默认 `origin`，本地是 fork 就填 `upstream`）。**要填 clone 的根目录**（该目录下能直接看到 `.git`），填子目录识别不到仓库、会退回静态审查；绝对路径或 `~` 都行，但不认 `%USERPROFILE%` 这类环境变量。配了才能让模型读代码 |
 | `enable_tools` | 开 | 让模型用工具（读文件 / 搜代码 / 看目录），仅 PR 且配了 `local_paths` 时生效 |
 | `allow_local_commands` | **关** | 允许模型跑白名单命令（`ruff check` / `ruff format --check` / `pytest` / `git show` / `git log`） |
 | `local_python` | 空 | 跑 `ruff` / `pytest` 用哪个解释器；留空用 AstrBot 自己的。填待审仓库虚拟环境的 python 路径更准 |
@@ -132,7 +132,7 @@ git clone https://github.com/lingyun14beta/astrbot_plugin_github_triage
 - 用 `git worktree` 而不是 clone —— 省磁盘、快，共享同一个对象库；
 - PR head 取到**本 PR 专属的私有 ref**（`refs/gh-triage/pr-N`）再检出成 detached HEAD。
   不用 `FETCH_HEAD`：那是仓库级共享状态，并发下会被另一次 fetch 插队，可能检出成另一条 PR 的代码且不报错；
-- worktree 落在仓库**外面**（同级 `.gh-triage-worktrees/`），不污染工作区、不动你的分支；
+- worktree 落在仓库**外面**（同级 `.gh-triage-worktrees/`，即你那个 clone 的父目录下，所以父目录要可写），不污染工作区、不动你的分支；
 - 退出时 `worktree remove --force` + `prune` + 删私有 ref，用完不留痕；
 - 配置的远端取不到 PR ref 时（本地 clone 是自己的 fork 的常见情形）自动退回 `upstream` 再试一次。
 

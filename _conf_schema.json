@@ -142,13 +142,13 @@
   },
   "local_paths": {
     "description": "本地仓库路径",
-    "hint": "可选。配了之后审 PR 时用独立 worktree 还原改动、让模型读代码；不配就只做静态审查。远端名默认 origin，本地是 fork 时填 upstream。",
+    "hint": "可选。配了之后审 PR 时用独立 worktree 还原改动、让模型读代码；不配就只做静态审查。远端名默认 origin，本地是 fork 时填 upstream。注意填的是 clone 的根目录（该目录下能直接看到 .git），填子目录会识别不到仓库而退回静态审查。",
     "type": "template_list",
     "default": [],
     "templates": {
       "path": {
         "name": "本地路径",
-        "hint": "clone 在本机的绝对路径，例如 D:/code/AstrBot。",
+        "hint": "clone 在本机的绝对路径，例如 D:/code/AstrBot（反斜杠也行；支持 ~，但不认 %USERPROFILE% 这类环境变量）。worktree 会建在它的父目录下的 .gh-triage-worktrees/，所以父目录要可写。",
         "display_item": "repo",
         "items": {
           "repo": {
