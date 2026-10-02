@@ -1,5 +1,7 @@
 # astrbot_plugin_github_triage
 
+[![CI](https://github.com/lingyun14beta/astrbot_plugin_github_triage/actions/workflows/ci.yml/badge.svg)](https://github.com/lingyun14beta/astrbot_plugin_github_triage/actions/workflows/ci.yml)
+
 把 GitHub 上的新 issue / PR 变成**一条能直接发布的评论草稿**，你过目、点头，它才发出去。
 
 ```
@@ -172,6 +174,9 @@ python -m pytest -q          # 75 条用例
 python -m ruff check .       # 代码检查
 python -m ruff format --check .
 ```
+
+CI（`.github/workflows/ci.yml`）把 ruff 钉在 `0.15.22` —— 与 AstrBot 本体的 `.pre-commit-config.yaml` 一致；
+本地也建议用同一个版本，否则新版本启用的新规则会让 CI 先红。
 
 用例分两层：`gh/` 里的纯逻辑（解析、状态、发布自检、路径边界、worktree 生命周期）不依赖 AstrBot，
 其余用例需要 AstrBot 运行时（`astrbot.api` 与 core 的指令装饰器），找不到时整组跳过。

@@ -13,7 +13,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: 安装检查工具
-        run: pip install ruff pytest aiohttp
+        # ruff 必须钉版本：不钉时 CI 会随最新版启用新规则，出现「本地绿、CI 红」。
+        # 0.15.22 与 AstrBot 本体 .pre-commit-config.yaml / pyproject.toml 的 dev 组保持一致。
+        run: pip install ruff==0.15.22 pytest aiohttp
       - name: 代码检查
         run: ruff check .
       - name: 格式检查

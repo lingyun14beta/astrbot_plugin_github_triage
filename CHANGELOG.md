@@ -23,6 +23,9 @@
 
 ### 说明
 
+- CI 把 ruff 钉在 `0.15.22`（与 AstrBot 本体的 `.pre-commit-config.yaml` 一致）。首次推送时因为没钉版本，
+  CI 装到的 ruff 启用了 `I001` / `SIM117` / `PYI034` 等额外规则，17 个错误让「代码检查」这一步直接失败，
+  而同一份代码在本机 `0.15.22` 上是全绿的 —— 钉住版本后两边才可比
 - 仓库迁到 [lingyun14beta/astrbot_plugin_github_triage](https://github.com/lingyun14beta/astrbot_plugin_github_triage)：
   `metadata.yaml` 的 `author` 与 `repo` 一并改到该账号下。**插件 ID 随之变为
   `lingyun14beta/astrbot_plugin_github_triage`**，插件的 KV（待发草稿、已处理表、通知列表、轮询水位）
