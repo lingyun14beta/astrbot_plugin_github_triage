@@ -20,6 +20,7 @@
 - [适合谁](#适合谁)
 - [安装](#安装)
 - [快速开始](#快速开始)
+- [让它读代码再下结论（推荐）](#让它读代码再下结论推荐)
 - [指令](#指令)
 - [配置](#配置)
 - [工作流程](#工作流程)
@@ -61,7 +62,72 @@ git clone https://github.com/lingyun14beta/astrbot_plugin_github_triage
 3. `/gh fetch` 立刻拉一次；或者打开 `poll_enabled` 让它按 `poll_cron` 自己跑。
 4. 收到通知后 `/gh t <编号或链接>` 出草稿，看完 `/gh post <编号> --force` 发出去。
 
-想让它读代码再下结论（推荐）：在 `local_paths` 里配上 `owner/repo` → 本地 clone 的绝对路径。
+到这里 `/gh t` 已经能用了，但它只看得到 diff。想让它读代码再下结论（推荐）：见下一节。
+
+## 让它读代码再下结论（推荐）
+
+不配 `local_paths` 时，插件只把 issue 正文和 PR 的 diff 交给模型 —— 模型看不到改动所在函数的完整逻辑，
+也没法搜调用方，结论只能建立在 diff 那几行上。配上本地仓库后，插件会把 PR head 检出成一个独立
+worktree，让模型用 `gh_read_file` / `gh_search_code` / `gh_list_dir` 自己去读。
+
+### 一步：准备一份 clone
+
+随便 clone 一份 **上游仓库**（不用是你的 fork）：
+
+```bash
+mkdir D:\code && cd D:\code
+git clone https://github.com/AstrBotDevs/AstrBot
+```
+
+**必须是完整的 clone，路径填到根目录** —— 也就是这个目录下能直接看到 `.git`：
+
+```
+D:\code\AstrBot\          ← 填这个
+D:\code\AstrBot\.git      ← 有这个才算
+D:\code\AstrBot\astrbot\  ← 不要填这种子目录
+```
+
+填错只会退化成静态审查（会话里会回一句「本地还原失败，退回静态审查」），不会影响其他功能。
+
+### 二步：在配置里映射
+
+插件配置 → **`local_paths`** → 添加一条：
+
+| 字段 | 填什么 | 例子 |
+| --- | --- | --- |
+| `repo` | 关注的仓库，`owner/repo` | `AstrBotDevs/AstrBot` |
+| `path` | 上一步 clone 的**根目录**绝对路径 | `D:\code\AstrBot` |
+| `remote` | 从哪个远端取 PR head，默认 `origin` | `origin` |
+
+几个容易踩的点：
+
+- **`remote` 填哪个**：如果这份 clone 是你自己的 fork，`origin` 指向 fork，那 PR 的 head 通常只在
+  上游上 —— 这时要么把 `remote` 填成 `upstream`（前提是你给这个 clone 加过 `upstream` 远端），
+  要么干脆按上一步直接 clone 上游；
+- **路径写法**：绝对路径或 `~` 都行，反斜杠也可以；但**不认** `%USERPROFILE%`、`$env:...` 这类
+  环境变量，填了会被当成字面路径；
+- **父目录要可写**：worktree 建在这个 clone 的**父目录**下的 `.gh-triage-worktrees/`，
+  用完自动删除。比如 `path` 填 `D:\code\AstrBot`，过程目录就是
+  `D:\code\.gh-triage-worktrees\AstrBotDevs__AstrBot-10328\`；
+- **多个仓库**就加多条，每条各配自己的 clone；
+- **想让模型跑检查命令**（可选）：再打开 `allow_local_commands`，并在 `local_python` 填这份待审仓库
+  自己虚拟环境的 python 路径 —— 检查命令要用它来跑，留空会用 AstrBot 的解释器，`ruff` / `pytest`
+  常常因为缺少依赖报一堆 import 错。注意 `pytest` 会执行待审 PR 的测试代码，只在你信任的仓库上开。
+
+### 三步：验证配通了
+
+配完在聊天里发：
+
+1. `/gh config` —— 「本地仓库」那一行应该显示 `AstrBotDevs/AstrBot→D:\code\AstrBot`，
+   工具应该是「开」；
+2. `/gh t <一个 PR 编号>` —— 抓取后应该多一条消息：`已把改动还原到独立 worktree，模型可用工具查看代码 …`。
+   出现这条就说明 worktree 建起来了、模型拿到了工具。
+
+如果只看到「本地还原失败，退回静态审查」，把它后面那句话和 `/gh config` 的输出一起看：
+`不是 git 仓库` 基本就是路径填错了一层；`git fetch 失败` 则是 `remote` 名字不对或网络不通。
+
+> 注意 worktree 里**只有 PR head 那一份快照**：模型读到的是这个 PR 的代码，读不到你主分支上的其他文件，
+> 也读不到 PR 没碰过的仓库文档（比如 `AGENTS.md`）。
 
 ## 指令
 
