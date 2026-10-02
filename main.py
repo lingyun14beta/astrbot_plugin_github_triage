@@ -222,6 +222,18 @@ class GithubTriagePlugin(Star):
                 return text[1:-1].strip()
         return text
 
+    @staticmethod
+    def _workspace_help(local: str, exc: Exception) -> str:
+        """worktree 建不起来时给用户的提示：先说清影响，再给可核对的排查方向。"""
+        return (
+            f"PR 代码还原失败，这次退回静态审查（只看 diff）：{exc}\n"
+            f"本地路径：{local}\n"
+            "排查：① 这个路径要填 clone 的根目录（目录下能直接看到 .git）；"
+            "② 跑插件的机器装了 git 吗（提示「不是 git 仓库」时优先看这两条）；"
+            "③ local_paths 里配的远端名在不在（默认 origin，"
+            "提示「git fetch 失败」时优先看这条）。"
+        )
+
     def _notify_targets(self) -> list[str]:
         """取配置里的通知会话，顺手剔掉空项与写法不对的项。"""
         configured = self.config.get("notify_targets") or []
@@ -490,7 +502,7 @@ class GithubTriagePlugin(Star):
                         draft = await _draft(str(ws.root))
                 except WorkspaceError as exc:
                     logger.warning(f"{LOG} 本地还原失败，退回静态审查：{exc}")
-                    yield event.plain_result(f"本地还原失败，退回静态审查：{exc}")
+                    yield event.plain_result(self._workspace_help(local, exc))
                     draft = await _draft(None)
             else:
                 draft = await _draft(None)

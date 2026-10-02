@@ -267,3 +267,16 @@ def test_missing_skill_is_reported_in_plain_language(monkeypatch):
     assert len(out) == 2, "先回「抓取 …」，再回缺失提示"
     assert "内置 Skill 缺失" in out[-1][1]
     assert "模型调用失败" not in out[-1][1]
+
+
+def test_workspace_failure_message_names_the_path_and_next_steps():
+    """还原失败时不能只甩一句异常：要带上是哪个路径、往哪查。"""
+    text = plugin_main.GithubTriagePlugin._workspace_help(
+        r"D:\code\AstrBot\src",
+        plugin_main.WorkspaceError(r"不是 git 仓库：D:\code\AstrBot\src"),
+    )
+
+    assert "退回静态审查" in text
+    assert r"D:\code\AstrBot\src" in text
+    assert "不是 git 仓库" in text, "原始错误要保留"
+    assert "根目录" in text and "装了 git" in text and "远端名" in text

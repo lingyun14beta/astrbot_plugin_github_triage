@@ -123,8 +123,17 @@ D:\code\AstrBot\astrbot\  ← 不要填这种子目录
 2. `/gh t <一个 PR 编号>` —— 抓取后应该多一条消息：`已把改动还原到独立 worktree，模型可用工具查看代码 …`。
    出现这条就说明 worktree 建起来了、模型拿到了工具。
 
-如果只看到「本地还原失败，退回静态审查」，把它后面那句话和 `/gh config` 的输出一起看：
-`不是 git 仓库` 基本就是路径填错了一层；`git fetch 失败` 则是 `remote` 名字不对或网络不通。
+如果只看到「PR 代码还原失败，这次退回静态审查」，那句话会带**你填的路径**和**原始错误**，
+按原始错误分流：
+
+| 原始错误 | 往哪查 |
+| --- | --- |
+| `不是 git 仓库：<路径>` | 路径填错了一层（要填 clone 根目录），或者跑插件的机器没装 `git` |
+| `git fetch 失败：<git 输出>` | `local_paths` 里配的远端名不对（默认 `origin`），或机器上网络不通 |
+| `git worktree add 失败：<git 输出>` | 父目录不可写、磁盘满，或这份 clone 是浅克隆缺对象 |
+
+> 这条消息只在「配了 `local_paths` + 审的是 PR + `enable_tools` 开着」时才会出现 —— 同时满足这三条，
+> 就说明配置本身是生效的，只是还原那一步失败了。
 
 > 注意 worktree 里**只有 PR head 那一份快照**：模型读到的是这个 PR 的代码，读不到你主分支上的其他文件，
 > 也读不到 PR 没碰过的仓库文档（比如 `AGENTS.md`）。
@@ -238,7 +247,7 @@ D:\code\AstrBot\astrbot\  ← 不要填这种子目录
 ## 测试
 
 ```bash
-python -m pytest -q          # 89 条用例
+python -m pytest -q          # 90 条用例
 python -m ruff check .       # 代码检查
 python -m ruff format --check .
 ```
