@@ -3,6 +3,18 @@
 > AstrBot 会在插件详情页读取本文件（依次尝试 `CHANGELOG.md` → `changelog.md` → `CHANGELOG` → `changelog`），
 > 按 Markdown 渲染。约定：发版时 `metadata.yaml` 的 `version` 与本文件最新一节标题保持一致。
 
+## v0.1.3
+
+### 修复
+
+- **仓库名大小写不一致时对不上**：`repos` 里写 `AstrBotDevs/AstrBot`、`local_paths` 里写
+  `astrbotdevs/astrbot`，原先查表拿不到本地路径，会静默退回静态审查。现在两边都按小写归一化
+  （GitHub 的 owner/repo 本来就不区分大小写），顺带去掉了键末尾多余的 `/`。
+  副作用：已处理表（`seen_items`）的键随之变小写，升级后**已处理过的老条目可能再被通知一次**，
+  只会重复一轮
+- **`local_paths` 里的残缺条目一律跳过**：`repo` 写法不对、路径为空、不是字典的条目以前会留在映射里，
+  现在直接丢弃
+
 ## v0.1.2
 
 通知会话只保留配置项一个入口：**去掉 `/gh watch`**，UMO 由用户自己在目标会话发 `/sid` 取得后填进配置。

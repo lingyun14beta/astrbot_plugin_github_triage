@@ -34,6 +34,43 @@ def _targets(raw):
     return TargetPlugin(raw)._notify_targets()
 
 
+# ---------- 目标写法 ----------
+
+
+class RepoPlugin(Plugin):
+    """只带 _resolve_target 需要的字段（它读 self.repos）。"""
+
+    def __init__(self, repos) -> None:
+        self.repos = repos
+
+
+def test_resolve_target_accepts_all_documented_forms():
+    plugin = RepoPlugin([{"repo": "astrbotdevs/astrbot"}])
+
+    # 显式写成 owner/repo 时按你写的原样用（GitHub 侧不区分大小写）
+    for target in (
+        "AstrBotDevs/AstrBot#10200",
+        "https://github.com/AstrBotDevs/AstrBot/pull/10200",
+        "https://github.com/AstrBotDevs/AstrBot/issues/10200",
+    ):
+        assert plugin._resolve_target(target) == (
+            "AstrBotDevs/AstrBot",
+            10200,
+        ), target
+
+    # 只写编号时用配置里的仓库，配置读取已归一成小写
+    assert plugin._resolve_target("10200") == ("astrbotdevs/astrbot", 10200)
+
+
+def test_resolve_target_rejects_unknown_and_ambiguous_input():
+    plugin = RepoPlugin([{"repo": "a/b"}, {"repo": "c/d"}])
+
+    with pytest.raises(ValueError, match="多个仓库"):
+        plugin._resolve_target("10200")
+    with pytest.raises(ValueError, match="无法识别"):
+        plugin._resolve_target("不是目标")
+
+
 # ---------- UMO 解析 ----------
 
 

@@ -1,4 +1,4 @@
-# astrbot_plugin_github_triage
+﻿# astrbot_plugin_github_triage
 
 [![CI](https://github.com/lingyun14beta/astrbot_plugin_github_triage/actions/workflows/ci.yml/badge.svg)](https://github.com/lingyun14beta/astrbot_plugin_github_triage/actions/workflows/ci.yml)
 
@@ -109,6 +109,9 @@ D:\code\AstrBot\astrbot\  ← 不要填这种子目录
 - **父目录要可写**：worktree 建在这个 clone 的**父目录**下的 `.gh-triage-worktrees/`，
   用完自动删除。比如 `path` 填 `D:\code\AstrBot`，过程目录就是
   `D:\code\.gh-triage-worktrees\AstrBotDevs__AstrBot-10328\`；
+- **`repo` 大小写不敏感**：插件会把 `repos` 与 `local_paths` 两边的仓库名都归一成小写再比对，
+  所以 `AstrBotDevs/AstrBot` 配在 `repos`、`astrbotdevs/astrbot` 配在 `local_paths` 也能对上
+  （GitHub 侧本来就不区分大小写，抓取与显示不受影响）；
 - **多个仓库**就加多条，每条各配自己的 clone；
 - **想让模型跑检查命令**（可选）：再打开 `allow_local_commands`，并在 `local_python` 填这份待审仓库
   自己虚拟环境的 python 路径 —— 检查命令要用它来跑，留空会用 AstrBot 的解释器，`ruff` / `pytest`
@@ -247,7 +250,7 @@ D:\code\AstrBot\astrbot\  ← 不要填这种子目录
 ## 测试
 
 ```bash
-python -m pytest -q          # 90 条用例
+python -m pytest -q          # 104 条用例
 python -m ruff check .       # 代码检查
 python -m ruff format --check .
 ```

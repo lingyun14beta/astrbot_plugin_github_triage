@@ -146,13 +146,30 @@ class GithubTriagePlugin(Star):
 
     # ---------- 配置读取 ----------
 
+    @staticmethod
+    def _repo_key(raw: Any) -> str:
+        """把配置里的仓库名归一成查表用的键。
+
+        GitHub 的 owner/repo 大小写不敏感（同一个仓库怎么拼都是它），而配置里
+        随手写成 `AstrBotDevs/AstrBot` 或 `astrbotdevs/astrbot` 都很常见；
+        标题与 API 调用不受影响（GitHub 侧同样不敏感），这里只统一键的写法。
+
+        Args:
+            raw: 配置里填的仓库名。
+
+        Returns:
+            小写、去掉两端空格与斜杠的 `owner/repo`；写法不合规时返回空串。
+        """
+        repo = str(raw or "").strip().strip("/").lower()
+        return repo if repo.count("/") == 1 else ""
+
     def _read_repos(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         for raw in self.config.get("repos") or []:
             if not isinstance(raw, dict):
                 continue
-            repo = str(raw.get("repo", "")).strip().strip("/")
-            if repo.count("/") != 1:
+            repo = self._repo_key(raw.get("repo", ""))
+            if not repo:
                 continue
             items.append(
                 {
@@ -164,18 +181,27 @@ class GithubTriagePlugin(Star):
         return items
 
     def _read_local_paths(self) -> dict[str, str]:
+        """本地 clone 映射：键与 `_read_repos` 用同一套归一化，大小写不同也能对上。"""
         mapping: dict[str, str] = {}
         for raw in self.config.get("local_paths") or []:
-            if isinstance(raw, dict) and raw.get("repo") and raw.get("path"):
-                mapping[str(raw["repo"]).strip()] = str(raw["path"]).strip()
+            if not isinstance(raw, dict):
+                continue
+            repo = self._repo_key(raw.get("repo", ""))
+            path = str(raw.get("path") or "").strip()
+            if repo and path:
+                mapping[repo] = path
         return mapping
 
     def _read_local_remotes(self) -> dict[str, str]:
         """可选的远端名：本地是 fork 时用 upstream 取 PR head。"""
         mapping: dict[str, str] = {}
         for raw in self.config.get("local_paths") or []:
-            if isinstance(raw, dict) and raw.get("repo") and raw.get("remote"):
-                mapping[str(raw["repo"]).strip()] = str(raw["remote"]).strip()
+            if not isinstance(raw, dict):
+                continue
+            repo = self._repo_key(raw.get("repo", ""))
+            remote = str(raw.get("remote") or "").strip()
+            if repo and remote:
+                mapping[repo] = remote
         return mapping
 
     def _chat_provider(self) -> str:
