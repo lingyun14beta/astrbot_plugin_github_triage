@@ -55,6 +55,10 @@ git clone https://github.com/lingyun14beta/astrbot_plugin_github_triage
 1. 在插件配置里填 **`github_token`**（建议只给 `public_repo`）→ **`repos`** 加一条 `owner/repo`
    → **`chat_provider_id`** 选一个模型。这三样是 `/gh t` 能跑起来的最小集合。
 2. 在群里或私聊发 `/gh watch on`，把当前会话加进通知列表。
+   想在 WebUI 里直接配，就填 AstrBot 的 UMO：`platform_id:MessageType:session_id`，
+   例如 `aiocqhttp:GroupMessage:123456`（`MessageType` 取 `GroupMessage` / `FriendMessage` / `OtherMessage`）。
+   不知道写什么：先在目标会话发一次 `/gh watch on`，再用 `/gh watch` 看列表里那条 UMO，照抄过去。
+   注意**命令写过的列表会覆盖配置项**，两者不会合并；`/gh watch` 的列表清空后，配置项才重新生效。
 3. `/gh fetch` 立刻拉一次；或者打开 `poll_enabled` 让它按 `poll_cron` 自己跑。
 4. 收到通知后 `/gh t <编号或链接>` 出草稿，看完 `/gh post <编号> --force` 发出去。
 
@@ -69,7 +73,7 @@ git clone https://github.com/lingyun14beta/astrbot_plugin_github_triage
 | `/gh list` | 列出所有待发草稿，末尾附已发布条数 |
 | `/gh post <目标> [--force] [--review] [--changes]` | 发布草稿；`dry_run` 开着时必须加 `--force` |
 | `/gh fetch` | 立刻轮询一次关注仓库 |
-| `/gh watch on\|off\|status` | 订阅 / 取消 / 查看本会话的新条目通知 |
+| `/gh watch [on\|off]` | 不带参数列出生效的通知会话（标出本会话）；`on` / `off` 订阅或取消本会话 |
 | `/gh config` | 查看生效配置：token 归属账号、API 剩余额度、本地仓库与工具开关（不显示 token 本身） |
 | `/gh help` | 列出可用子指令 |
 
@@ -90,7 +94,7 @@ git clone https://github.com/lingyun14beta/astrbot_plugin_github_triage
 | `enabled` | 开 | 总开关。关掉后所有 `/gh` 子指令（含 `/gh post`）一律不响应 |
 | `github_token` | 空 | 空则匿名访问（60 次/小时，按出口 IP）；配了是 5000 次/小时。建议只给 `public_repo` |
 | `repos` | 空 | 关注列表，每条含 `owner/repo` 与是否监听 issue / PR |
-| `notify_targets` | 空 | 新条目推送到哪些会话。一般不用手填，用 `/gh watch on` |
+| `notify_targets` | 空 | 新条目推送到哪些会话，填 AstrBot 的 UMO（`platform_id:MessageType:session_id`）。一般用 `/gh watch on` 更省事：命令写过的列表会覆盖本项，列表为空时本项才生效 |
 | `poll_enabled` / `poll_cron` | 关 / `*/10 * * * *` | 定时轮询。关掉仍可用 `/gh fetch` 手动拉 |
 | `chat_provider_id` | 空 | 分析用模型。留空时 `/gh t` 会提示先配 |
 | `dry_run` | **开** | 开着时所有发布动作都要 `--force` |
@@ -170,7 +174,7 @@ git clone https://github.com/lingyun14beta/astrbot_plugin_github_triage
 ## 测试
 
 ```bash
-python -m pytest -q          # 75 条用例
+python -m pytest -q          # 91 条用例
 python -m ruff check .       # 代码检查
 python -m ruff format --check .
 ```

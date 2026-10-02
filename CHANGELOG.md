@@ -3,6 +3,25 @@
 > AstrBot 会在插件详情页读取本文件（依次尝试 `CHANGELOG.md` → `changelog.md` → `CHANGELOG` → `changelog`），
 > 按 Markdown 渲染。约定：发版时 `metadata.yaml` 的 `version` 与本文件最新一节标题保持一致。
 
+## v0.1.2
+
+通知会话现在可以直接按 AstrBot 的 UMO 配置，也能一眼看到生效的是哪几个。
+
+### 新增
+
+- **`notify_targets` 支持 UMO**：填 `platform_id:MessageType:session_id`（例如
+  `aiocqhttp:GroupMessage:123456`）即可，不必先让 bot 主动发一条消息
+- **`/gh watch` 列出生效会话**：显示平台、群聊/私聊、会话 ID，并标出本会话；
+  写法不认识的条目会被标出来（这类条目推送必然失败，先让人看见）
+- **`/gh config` 增加「通知会话」一行**：显示数量与来源（命令 / 配置）
+
+### 修复
+
+- **`/gh watch off` 掉最后一个会话后不再回落配置**：命令写过列表就以列表为准（`[]` 也是），
+  否则「取消订阅」会被配置项里那条默默接管
+- **列表项两端空格不再漏进 UMO**：`notify_targets` 与 KV 里的条目统一 `strip()`，
+  带空格的写法以前解析会失败
+
 ## v0.1.1
 
 修掉几处会让功能静默失效的问题；发布姿态与配置项都没变。

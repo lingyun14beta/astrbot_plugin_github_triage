@@ -44,7 +44,7 @@
   },
   "notify_targets": {
     "description": "通知会话",
-    "hint": "发现新条目时推送到哪些会话。一般不用手填，用 /gh watch on 把当前会话加进去、/gh watch off 移除。",
+    "hint": "发现新条目时推送到哪些会话，填 AstrBot 的 UMO：platform_id:MessageType:session_id，例如 aiocqhttp:GroupMessage:123456。MessageType 取 GroupMessage / FriendMessage / OtherMessage。不知道写什么就先在目标会话里发 /gh watch on（会自动写入），再用 /gh watch 查看列表里那条 UMO，照抄到配置里即可。注意：/gh watch 写过的列表会覆盖本项，列表为空时本项才生效。",
     "type": "list",
     "default": []
   },

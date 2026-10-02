@@ -193,14 +193,51 @@ class GithubTriagePlugin(Star):
             "APPROVE",
         ) else "COMMENT"
 
-    async def _notify_targets(self) -> list[str]:
-        stored = await self.get_kv_data(NOTIFY_KEY, None)
-        if isinstance(stored, list) and stored:
-            return [str(item) for item in stored]
-        configured = self.config.get("notify_targets") or []
-        return [str(item) for item in configured]
-
     # ---------- 工具方法 ----------
+
+    @staticmethod
+    def _parse_umo(raw: str) -> tuple[str, str, str] | None:
+        """解析 unified_msg_origin，格式 ``platform_id:MessageType:session_id``。
+
+        Args:
+            raw: 待解析的会话标识。
+
+        Returns:
+            ``(platform_id, message_type, session_id)``；写法不合规时返回 None。
+        """
+        parts = str(raw or "").strip().split(":", 2)
+        if len(parts) != 3 or not all(parts):
+            return None
+        if parts[1] not in ("GroupMessage", "FriendMessage", "OtherMessage"):
+            return None
+        return parts[0], parts[1], parts[2]
+
+    @staticmethod
+    def _format_targets(targets: list[str], current: str = "") -> str:
+        """把生效的通知会话渲染成可读列表，标出本会话。"""
+        lines = []
+        for item in targets:
+            parsed = GithubTriagePlugin._parse_umo(item)
+            mark = " ← 本会话" if item == current else ""
+            if parsed is None:
+                lines.append(f"- {item}（写法不认识，推送会失败）{mark}")
+            else:
+                kind = "群聊" if parsed[1] == "GroupMessage" else "私聊"
+                lines.append(f"- {parsed[0]}｜{kind}｜{parsed[2]}{mark}")
+        return "\n".join(lines)
+
+    async def _notify_targets(self) -> tuple[list[str], str]:
+        """取生效的通知会话；``/gh watch`` 写过就以它为准，否则回落到配置。
+
+        返回 ``(列表, 来源)``，来源取 ``"命令"`` / ``"配置"`` / ``"无"``。
+        """
+        stored = await self.get_kv_data(NOTIFY_KEY, None)
+        if isinstance(stored, list):
+            return [str(item).strip() for item in stored if str(item).strip()], "命令"
+        configured = self.config.get("notify_targets") or []
+        if not isinstance(configured, list):
+            return [], "无"
+        return [str(item).strip() for item in configured if str(item).strip()], "配置"
 
     def _resolve_target(self, target: str) -> tuple[str, int]:
         """把 URL / owner/repo#n / 纯编号解析成 ``(repo, number)``。
@@ -329,10 +366,11 @@ class GithubTriagePlugin(Star):
         return found
 
     async def _notify_new_items(self, items: list[dict[str, Any]]) -> None:
-        targets = await self._notify_targets()
+        targets, source = await self._notify_targets()
         if not targets:
             logger.info(f"{LOG} 有新条目但未订阅会话，跳过通知。")
             return
+        logger.info(f"{LOG} 推送到 {len(targets)} 个会话（来源：{source}）")
 
         lines = ["【GitHub 更新】"]
         for item in items:
@@ -365,7 +403,8 @@ class GithubTriagePlugin(Star):
             "/gh list         列出待发草稿\n"
             "/gh post <编号>  发布草稿（dry_run 开启时需加 --force）\n"
             "/gh fetch        立刻轮询一次\n"
-            "/gh watch on|off|status  订阅/取消/查看本会话通知"
+            "/gh watch        列出通知会话（on/off 订阅或取消本会话）\n"
+            "/gh config       查看生效配置"
         )
 
     @gh_group.command("t")
@@ -586,28 +625,41 @@ class GithubTriagePlugin(Star):
     @gh_group.command("watch")
     @requires_enabled
     async def gh_watch(self, event: AstrMessageEvent, action: str = "status") -> None:
-        """订阅/取消订阅本会话的新条目通知。"""
+        """订阅/取消订阅本会话的新条目通知，或列出当前生效的会话。"""
         umo = event.unified_msg_origin
-        targets = await self._notify_targets()
+        targets, source = await self._notify_targets()
         action = str(action or "status").lower()
 
         if action in ("on", "add"):
             if umo in targets:
-                yield event.plain_result("本会话已在订阅列表中。")
+                yield event.plain_result(f"本会话已在通知列表里（来源：{source}）。")
                 return
             targets.append(umo)
             await self.put_kv_data(NOTIFY_KEY, targets)
-            yield event.plain_result("已把本会话加入通知列表。")
+            yield event.plain_result(
+                f"已把本会话加入通知列表（共 {len(targets)} 个）。"
+                f"这份列表存在插件数据里，会覆盖配置项 notify_targets。"
+            )
         elif action in ("off", "del", "remove"):
             if umo not in targets:
                 yield event.plain_result("本会话不在通知列表中。")
                 return
             targets.remove(umo)
             await self.put_kv_data(NOTIFY_KEY, targets)
-            yield event.plain_result("已把本会话移出通知列表。")
+            note = "" if targets else "列表已空，新条目将不再推送。"
+            yield event.plain_result(f"已把本会话移出通知列表。{note}")
         else:
+            if not targets:
+                yield event.plain_result(
+                    "当前没有订阅任何会话。\n"
+                    "用 /gh watch on 订阅本会话，或者在配置项 notify_targets 里直接填 UMO"
+                    "（格式 platform_id:MessageType:session_id，例如 aiocqhttp:GroupMessage:123456）。"
+                )
+                return
             yield event.plain_result(
-                f"当前订阅 {len(targets)} 个会话；本会话{'已' if umo in targets else '未'}订阅。"
+                f"通知会话（{len(targets)} 个，来源：{source}）：\n"
+                f"{self._format_targets(targets, umo)}\n"
+                "改这份列表用 /gh watch on|off；配置项 notify_targets 只在列表为空时生效。"
             )
 
     @gh_group.command("config")
@@ -630,11 +682,18 @@ class GithubTriagePlugin(Star):
         tools_state = "开" if self.config.get("enable_tools", True) else "关"
         cmds = "允许" if self.config.get("allow_local_commands", False) else "不允许"
         rate = self.client.last_rate_remaining or "未知"
+        notify, notify_source = await self._notify_targets()
+        notify_state = (
+            f"{len(notify)} 个（来源：{notify_source}）"
+            if notify
+            else "未订阅（用 /gh watch on 或配置 notify_targets）"
+        )
         yield event.plain_result(
             f"Token：{token_state}\n"
             f"仓库：{repos}\n"
             f"模型：{self._chat_provider() or '（未配置）'}\n"
             f"轮询：{'开' if self.config.get('poll_enabled') else '关'}（{self.config.get('poll_cron')}）\n"
+            f"通知会话：{notify_state}\n"
             f"发布：dry_run={'开' if self.config.get('dry_run', True) else '关'}"
             f"｜PR {'走 review' if as_review else '走评论'}（{review_event}）\n"
             f"本地仓库：{local}\n"
