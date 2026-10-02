@@ -199,3 +199,17 @@ ASTRBOT_ROOT=/path/to/AstrBot python -m pytest -q
   或单仓库一轮超过 50 条更新时会反复重扫同一窗口（已处理表挡重复通知，不会重复打扰你）；
 - 只做单页拉取：单个 PR 改动文件超过 100 个（GitHub 分页上限）时，列出的文件是前 100 个，
   材料里会标注，diff 本身仍是完整的。
+
+## 许可
+
+本插件以 [MIT 协议](LICENSE) 发布：
+
+```
+Copyright (c) 2026 lingyun14beta
+```
+
+第三方内容按各自的协议随附，转载或再分发时请一并保留：
+
+- `skills/gh-code-review/`：取自 [code-review-skill-codex](https://github.com/NefelibataBIGR/code-review-skill-codex)
+  的内置副本，MIT © 2026 Nefelibata，原协议文本在 `skills/gh-code-review/LICENSE`；
+  本副本为适配 AstrBot 做过本地化改动（目录名、frontmatter 的 `name` 与 `description`）。

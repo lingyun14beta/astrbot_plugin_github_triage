@@ -23,6 +23,8 @@
 
 ### 说明
 
+- 补上 MIT 协议（`LICENSE`，Copyright © 2026 lingyun14beta）。插件内置的 `skills/gh-code-review/`
+  是第三方内容，按 MIT © 2026 Nefelibata 随附原协议文本，`README` 的「许可」一节写明了这一点
 - CI 把 ruff 钉在 `0.15.22`（与 AstrBot 本体的 `.pre-commit-config.yaml` 一致）。首次推送时因为没钉版本，
   CI 装到的 ruff 启用了 `I001` / `SIM117` / `PYI034` 等额外规则，17 个错误让「代码检查」这一步直接失败，
   而同一份代码在本机 `0.15.22` 上是全绿的 —— 钉住版本后两边才可比
