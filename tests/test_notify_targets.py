@@ -1,13 +1,12 @@
-"""通知会话用例：UMO 解析、生效列表的来源与渲染。
+"""通知会话用例：UMO 解析、配置项的清洗与渲染。
 
-`/gh watch` 与配置项 `notify_targets` 都会给出待推送的会话，这里盯住三件事：
-写法不认识的 UMO 能被识别出来、命令写过的列表优先于配置、列表为空时才回落到配置。
+通知只走配置项 `notify_targets` 一个入口（`/gh watch` 已移除），所以这里盯住：
+写法不对的条目能被挡下来、从 `/sid` 复制来的引号能被剥掉、渲染读得懂。
 需要 AstrBot 运行时（指令装饰器来自 core），缺运行时时整组跳过。
 """
 
 from __future__ import annotations
 
-import asyncio
 import os
 import tempfile
 
@@ -20,27 +19,19 @@ pytest.importorskip("astrbot", reason="指令装饰器来自 AstrBot core，缺�
 from astrbot_plugin_github_triage import main as plugin_main  # noqa: E402
 
 Plugin = plugin_main.GithubTriagePlugin
-NOTIFY_KEY = plugin_main.NOTIFY_KEY
 
 
-class TargetPlugin:
-    """只带 _notify_targets 需要的字段：KV 宿主 + 配置。"""
+class TargetPlugin(Plugin):
+    """只带 _notify_targets 需要的字段：配置。"""
 
-    def __init__(self, stored: object = None, notify_targets=None) -> None:
-        self.store: dict[str, object] = {}
-        if stored is not None:
-            self.store[NOTIFY_KEY] = stored
-        self.config = {"notify_targets": notify_targets or []}
-
-    async def get_kv_data(self, key, default=None):
-        return self.store.get(key, default)
-
-    async def put_kv_data(self, key, value) -> None:
-        self.store[key] = value
+    def __init__(self, notify_targets=None) -> None:
+        self.config = {
+            "notify_targets": [] if notify_targets is None else notify_targets
+        }
 
 
-def _targets(plugin):
-    return asyncio.run(Plugin._notify_targets(plugin))
+def _targets(raw):
+    return TargetPlugin(raw)._notify_targets()
 
 
 # ---------- UMO 解析 ----------
@@ -65,7 +56,7 @@ def test_parse_umo_accepts_all_message_types():
 
 
 def test_parse_umo_keeps_colons_inside_session_id():
-    """session_id 里带冒号时要原样保留（split 只切前两段）。"""
+    """session_id 里带冒号时要原样保留（只切前两段）。"""
     assert Plugin._parse_umo("aiocqhttp:GroupMessage:g:1") == (
         "aiocqhttp",
         "GroupMessage",
@@ -89,54 +80,64 @@ def test_parse_umo_rejects_malformed(raw):
     assert Plugin._parse_umo(raw) is None
 
 
-# ---------- 生效列表与来源 ----------
+# ---------- 配置项清洗 ----------
 
 
-def test_config_targets_are_used_when_command_list_absent():
-    plugin = TargetPlugin(notify_targets=["aiocqhttp:GroupMessage:1"])
-    assert _targets(plugin) == (["aiocqhttp:GroupMessage:1"], "配置")
-
-
-def test_command_list_takes_precedence_over_config():
-    plugin = TargetPlugin(
-        stored=["aiocqhttp:GroupMessage:2"],
-        notify_targets=["aiocqhttp:GroupMessage:1"],
+def test_sid_output_wrapper_is_stripped():
+    """/sid 输出的是「UMO」，连书名号一起复制也要能用。"""
+    assert (
+        Plugin._clean_target("「aiocqhttp:GroupMessage:1」")
+        == "aiocqhttp:GroupMessage:1"
     )
-    assert _targets(plugin) == (["aiocqhttp:GroupMessage:2"], "命令")
-
-
-def test_empty_command_list_does_not_fall_back_to_config():
-    """`/gh watch off` 掉最后一个会话后，不应该又冒出配置里那条。"""
-    plugin = TargetPlugin(stored=[], notify_targets=["aiocqhttp:GroupMessage:1"])
-    assert _targets(plugin) == ([], "命令")
-
-
-def test_config_entries_are_trimmed_and_blanks_dropped():
-    plugin = TargetPlugin(
-        notify_targets=["  aiocqhttp:GroupMessage:1  ", "", "   ", 42]
+    assert (
+        Plugin._clean_target('"aiocqhttp:GroupMessage:1"') == "aiocqhttp:GroupMessage:1"
     )
-    assert _targets(plugin) == (["aiocqhttp:GroupMessage:1", "42"], "配置")
+    assert (
+        Plugin._clean_target("  aiocqhttp:GroupMessage:1  ")
+        == "aiocqhttp:GroupMessage:1"
+    )
 
 
-def test_non_list_config_is_ignored():
-    plugin = TargetPlugin()
-    plugin.config = {"notify_targets": "aiocqhttp:GroupMessage:1"}
-    assert _targets(plugin) == ([], "无")
+def test_clean_target_leaves_normal_value_alone():
+    assert (
+        Plugin._clean_target("aiocqhttp:GroupMessage:1") == "aiocqhttp:GroupMessage:1"
+    )
 
 
-# ---------- 列表渲染 ----------
+def test_targets_are_cleaned_and_malformed_entries_dropped():
+    targets = _targets(
+        [
+            "aiocqhttp:GroupMessage:1",
+            "「telegram:FriendMessage:42」",
+            "",
+            "   ",
+            "aiocqhttp:group:oops",
+            "123456",
+            None,
+            "webchat:OtherMessage:chat-1",
+        ]
+    )
+    assert targets == [
+        "aiocqhttp:GroupMessage:1",
+        "telegram:FriendMessage:42",
+        "webchat:OtherMessage:chat-1",
+    ]
 
 
-def test_format_targets_labels_kind_and_marks_current_session():
+def test_missing_or_non_list_config_gives_empty_list():
+    assert TargetPlugin()._notify_targets() == []
+    assert TargetPlugin("aiocqhttp:GroupMessage:1")._notify_targets() == []
+    assert TargetPlugin(None)._notify_targets() == []
+
+
+# ---------- 渲染 ----------
+
+
+def test_format_targets_labels_kind():
     text = Plugin._format_targets(
-        ["aiocqhttp:GroupMessage:123456", "telegram:FriendMessage:42"],
-        current="telegram:FriendMessage:42",
+        ["aiocqhttp:GroupMessage:123456", "telegram:FriendMessage:42"]
     )
-    lines = text.splitlines()
-    assert lines[0] == "- aiocqhttp｜群聊｜123456"
-    assert lines[1] == "- telegram｜私聊｜42 ← 本会话"
-
-
-def test_format_targets_flags_unparsable_entry():
-    text = Plugin._format_targets(["aiocqhttp:group:1"])
-    assert "写法不认识" in text
+    assert text.splitlines() == [
+        "- aiocqhttp｜群聊｜123456",
+        "- telegram｜私聊｜42",
+    ]

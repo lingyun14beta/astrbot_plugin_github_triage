@@ -28,9 +28,10 @@ from .gh.workspace import PullWorkspace, WorkspaceError
 PLUGIN_NAME = "astrbot_plugin_github_triage"
 LOG = "[gh-triage]"
 POLL_JOB_NAME = "github-triage-poll"
-NOTIFY_KEY = "notify_targets"
 # 每个仓库单轮抓取的条数上限：再多的条目靠「不推进水位 + 下一轮重扫」补齐
 POLL_PAGE_SIZE = 50
+# UMO 的第二段，AstrBot 的 MessageType 只有这三个取值
+MESSAGE_TYPES = ("GroupMessage", "FriendMessage", "OtherMessage")
 
 URL_RE = re.compile(r"github\.com/([^/\s]+)/([^/\s]+)/(?:pull|issues)/(\d+)")
 # 两组都必须是捕获组：解析处统一按 (repo 前半, repo 后半, 编号) 取 group(1..3)
@@ -208,36 +209,49 @@ class GithubTriagePlugin(Star):
         parts = str(raw or "").strip().split(":", 2)
         if len(parts) != 3 or not all(parts):
             return None
-        if parts[1] not in ("GroupMessage", "FriendMessage", "OtherMessage"):
+        if parts[1] not in MESSAGE_TYPES:
             return None
         return parts[0], parts[1], parts[2]
 
     @staticmethod
-    def _format_targets(targets: list[str], current: str = "") -> str:
-        """把生效的通知会话渲染成可读列表，标出本会话。"""
+    def _clean_target(raw: Any) -> str:
+        """清掉从聊天里复制 UMO 时容易带上的成对包裹（``/sid`` 输出是「…」）。"""
+        text = str(raw or "").strip()
+        for left, right in (("「", "」"), ("“", "”"), ("'", "'"), ('"', '"')):
+            if len(text) >= 2 and text.startswith(left) and text.endswith(right):
+                return text[1:-1].strip()
+        return text
+
+    def _notify_targets(self) -> list[str]:
+        """取配置里的通知会话，顺手剔掉空项与写法不对的项。"""
+        configured = self.config.get("notify_targets") or []
+        if not isinstance(configured, list):
+            return []
+        targets = []
+        for raw in configured:
+            if raw is None:
+                continue
+            item = self._clean_target(raw)
+            if not item:
+                continue
+            if self._parse_umo(item) is None:
+                logger.warning(
+                    f"{LOG} notify_targets 里的这一项不是合法的 UMO，已跳过：{item}"
+                    "（格式 platform_id:MessageType:session_id，可在目标会话发 /sid 获取）"
+                )
+                continue
+            targets.append(item)
+        return targets
+
+    @staticmethod
+    def _format_targets(targets: list[str]) -> str:
+        """把通知会话渲染成可读列表。"""
         lines = []
         for item in targets:
             parsed = GithubTriagePlugin._parse_umo(item)
-            mark = " ← 本会话" if item == current else ""
-            if parsed is None:
-                lines.append(f"- {item}（写法不认识，推送会失败）{mark}")
-            else:
-                kind = "群聊" if parsed[1] == "GroupMessage" else "私聊"
-                lines.append(f"- {parsed[0]}｜{kind}｜{parsed[2]}{mark}")
+            kind = "群聊" if parsed[1] == "GroupMessage" else "私聊"
+            lines.append(f"- {parsed[0]}｜{kind}｜{parsed[2]}")
         return "\n".join(lines)
-
-    async def _notify_targets(self) -> tuple[list[str], str]:
-        """取生效的通知会话；``/gh watch`` 写过就以它为准，否则回落到配置。
-
-        返回 ``(列表, 来源)``，来源取 ``"命令"`` / ``"配置"`` / ``"无"``。
-        """
-        stored = await self.get_kv_data(NOTIFY_KEY, None)
-        if isinstance(stored, list):
-            return [str(item).strip() for item in stored if str(item).strip()], "命令"
-        configured = self.config.get("notify_targets") or []
-        if not isinstance(configured, list):
-            return [], "无"
-        return [str(item).strip() for item in configured if str(item).strip()], "配置"
 
     def _resolve_target(self, target: str) -> tuple[str, int]:
         """把 URL / owner/repo#n / 纯编号解析成 ``(repo, number)``。
@@ -366,11 +380,11 @@ class GithubTriagePlugin(Star):
         return found
 
     async def _notify_new_items(self, items: list[dict[str, Any]]) -> None:
-        targets, source = await self._notify_targets()
+        targets = self._notify_targets()
         if not targets:
-            logger.info(f"{LOG} 有新条目但未订阅会话，跳过通知。")
+            logger.info(f"{LOG} 有新条目但未配通知会话（notify_targets），跳过通知。")
             return
-        logger.info(f"{LOG} 推送到 {len(targets)} 个会话（来源：{source}）")
+        logger.info(f"{LOG} 推送到 {len(targets)} 个会话")
 
         lines = ["【GitHub 更新】"]
         for item in items:
@@ -403,8 +417,8 @@ class GithubTriagePlugin(Star):
             "/gh list         列出待发草稿\n"
             "/gh post <编号>  发布草稿（dry_run 开启时需加 --force）\n"
             "/gh fetch        立刻轮询一次\n"
-            "/gh watch        列出通知会话（on/off 订阅或取消本会话）\n"
-            "/gh config       查看生效配置"
+            "/gh config       查看生效配置\n"
+            "通知会话在插件配置的 notify_targets 里填：先到目标会话发 /sid，把输出的 UMO 抄进去"
         )
 
     @gh_group.command("t")
@@ -622,46 +636,6 @@ class GithubTriagePlugin(Star):
         ]
         yield event.plain_result(f"发现 {len(found)} 条新条目：\n" + "\n".join(lines))
 
-    @gh_group.command("watch")
-    @requires_enabled
-    async def gh_watch(self, event: AstrMessageEvent, action: str = "status") -> None:
-        """订阅/取消订阅本会话的新条目通知，或列出当前生效的会话。"""
-        umo = event.unified_msg_origin
-        targets, source = await self._notify_targets()
-        action = str(action or "status").lower()
-
-        if action in ("on", "add"):
-            if umo in targets:
-                yield event.plain_result(f"本会话已在通知列表里（来源：{source}）。")
-                return
-            targets.append(umo)
-            await self.put_kv_data(NOTIFY_KEY, targets)
-            yield event.plain_result(
-                f"已把本会话加入通知列表（共 {len(targets)} 个）。"
-                f"这份列表存在插件数据里，会覆盖配置项 notify_targets。"
-            )
-        elif action in ("off", "del", "remove"):
-            if umo not in targets:
-                yield event.plain_result("本会话不在通知列表中。")
-                return
-            targets.remove(umo)
-            await self.put_kv_data(NOTIFY_KEY, targets)
-            note = "" if targets else "列表已空，新条目将不再推送。"
-            yield event.plain_result(f"已把本会话移出通知列表。{note}")
-        else:
-            if not targets:
-                yield event.plain_result(
-                    "当前没有订阅任何会话。\n"
-                    "用 /gh watch on 订阅本会话，或者在配置项 notify_targets 里直接填 UMO"
-                    "（格式 platform_id:MessageType:session_id，例如 aiocqhttp:GroupMessage:123456）。"
-                )
-                return
-            yield event.plain_result(
-                f"通知会话（{len(targets)} 个，来源：{source}）：\n"
-                f"{self._format_targets(targets, umo)}\n"
-                "改这份列表用 /gh watch on|off；配置项 notify_targets 只在列表为空时生效。"
-            )
-
     @gh_group.command("config")
     @requires_enabled
     async def gh_config(self, event: AstrMessageEvent) -> None:
@@ -682,11 +656,11 @@ class GithubTriagePlugin(Star):
         tools_state = "开" if self.config.get("enable_tools", True) else "关"
         cmds = "允许" if self.config.get("allow_local_commands", False) else "不允许"
         rate = self.client.last_rate_remaining or "未知"
-        notify, notify_source = await self._notify_targets()
+        notify = self._notify_targets()
         notify_state = (
-            f"{len(notify)} 个（来源：{notify_source}）"
+            f"{len(notify)} 个\n{self._format_targets(notify)}"
             if notify
-            else "未订阅（用 /gh watch on 或配置 notify_targets）"
+            else "未配置（在目标会话发 /sid 拿到 UMO，填进 notify_targets）"
         )
         yield event.plain_result(
             f"Token：{token_state}\n"

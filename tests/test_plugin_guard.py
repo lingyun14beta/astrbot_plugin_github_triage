@@ -24,7 +24,6 @@ COMMANDS = (
     "gh_list",
     "gh_post",
     "gh_fetch",
-    "gh_watch",
     "gh_config",
 )
 

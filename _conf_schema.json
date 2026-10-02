@@ -44,7 +44,7 @@
   },
   "notify_targets": {
     "description": "通知会话",
-    "hint": "发现新条目时推送到哪些会话，填 AstrBot 的 UMO：platform_id:MessageType:session_id，例如 aiocqhttp:GroupMessage:123456。MessageType 取 GroupMessage / FriendMessage / OtherMessage。不知道写什么就先在目标会话里发 /gh watch on（会自动写入），再用 /gh watch 查看列表里那条 UMO，照抄到配置里即可。注意：/gh watch 写过的列表会覆盖本项，列表为空时本项才生效。",
+    "hint": "发现新条目时推送到哪些会话。填 AstrBot 的 UMO：platform_id:MessageType:session_id，例如 aiocqhttp:GroupMessage:123456。获取方法：在目标会话里发 /sid，把输出里「UMO」那一行原样复制过来（连「」一起复制也行，插件会剥掉）。MessageType 取 GroupMessage / FriendMessage / OtherMessage；写法不对的条目会被跳过并在日志里点名。",
     "type": "list",
     "default": []
   },

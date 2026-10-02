@@ -5,22 +5,18 @@
 
 ## v0.1.2
 
-通知会话现在可以直接按 AstrBot 的 UMO 配置，也能一眼看到生效的是哪几个。
+通知会话只保留配置项一个入口：**去掉 `/gh watch`**，UMO 由用户自己在目标会话发 `/sid` 取得后填进配置。
 
-### 新增
+### 变更
 
-- **`notify_targets` 支持 UMO**：填 `platform_id:MessageType:session_id`（例如
-  `aiocqhttp:GroupMessage:123456`）即可，不必先让 bot 主动发一条消息
-- **`/gh watch` 列出生效会话**：显示平台、群聊/私聊、会话 ID，并标出本会话；
-  写法不认识的条目会被标出来（这类条目推送必然失败，先让人看见）
-- **`/gh config` 增加「通知会话」一行**：显示数量与来源（命令 / 配置）
-
-### 修复
-
-- **`/gh watch off` 掉最后一个会话后不再回落配置**：命令写过列表就以列表为准（`[]` 也是），
-  否则「取消订阅」会被配置项里那条默默接管
-- **列表项两端空格不再漏进 UMO**：`notify_targets` 与 KV 里的条目统一 `strip()`，
-  带空格的写法以前解析会失败
+- **移除 `/gh watch`**：原先让 bot 自己记下当前会话，等于同一份状态存在插件 KV 与配置项两处，
+  「命令写的列表覆盖配置」这条规则既不直观、又让取消订阅取消不干净。现在只有一个入口：
+  在目标会话发 `/sid`，把输出里的 `UMO` 一行填进配置项 `notify_targets`
+- **`notify_targets` 会校验 UMO**：填 `platform_id:MessageType:session_id`（例如
+  `aiocqhttp:GroupMessage:123456`），`MessageType` 取 `GroupMessage` / `FriendMessage` / `OtherMessage`；
+  空项与写法不对的条目直接跳过，并在日志里点名是哪一个
+- **`/sid` 输出的「」会被剥掉**：连书名号或引号一起复制也能用
+- **`/gh config` 的「通知会话」直接列出解析后的平台 / 群聊私聊 / 会话 ID**，不再只是计数
 
 ## v0.1.1
 
@@ -51,7 +47,7 @@
   `metadata.yaml` 的 `author` 与 `repo` 一并改到该账号下。**插件 ID 随之变为
   `lingyun14beta/astrbot_plugin_github_triage`**，插件的 KV（待发草稿、已处理表、通知列表、轮询水位）
   与 `data/plugin_data/` 目录都会从新位置重新开始 —— 升级到本版后旧数据不会自动搬过来，
-  需要在新位置重新 `/gh watch on`。
+  需要按新入口重新配置通知会话（见 v0.1.2）。
 - CI 的 `ruff format --check .` 之前会在 `tests/` 上报 8 个文件，已重新格式化（`ruff check` 保持全绿）
 - `metadata.yaml` 的 `support_platforms` 去掉了 AstrBot 本体并未注册的 `vocechat`
 - 补齐内置 skill 的出处：[NefelibataBIGR/code-review-skill-codex](https://github.com/NefelibataBIGR/code-review-skill-codex)
