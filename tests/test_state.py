@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from astrbot_plugin_github_triage.gh.state import (
+    DRAFTS_LIMIT,
     PUBLISHED_LIMIT,
     SEEN_LIMIT,
     StateStore,
@@ -59,6 +60,36 @@ def test_draft_roundtrip():
         assert await state.get_draft("o/r", 5) is None
 
     asyncio.run(run())
+
+
+def test_draft_table_is_capped_keeping_newest():
+    async def run():
+        state = StateStore(FakeKvHost())
+        for number in range(DRAFTS_LIMIT + 5):
+            await state.save_draft("o/r", number, kind="pr", title="t", body="b")
+
+        drafts = await state.drafts()
+        assert len(drafts) == DRAFTS_LIMIT
+        # 丢的是最旧的：时间戳同秒时按插入顺序保留后写入的
+        assert await state.get_draft("o/r", DRAFTS_LIMIT + 4) is not None
+        assert await state.get_draft("o/r", 0) is None
+
+    asyncio.run(run())
+
+
+def test_capping_drafts_logs_what_it_drops(caplog):
+    async def run():
+        state = StateStore(FakeKvHost())
+        for number in range(DRAFTS_LIMIT + 3):
+            await state.save_draft("o/r", number, kind="pr", title="t", body="b")
+
+    with caplog.at_level("WARNING"):
+        asyncio.run(run())
+
+    messages = [record.getMessage() for record in caplog.records]
+    # 每存一条超限就丢一条最旧的，逐条留痕（不是等超了很多才一次性清）
+    assert sum("已丢弃最旧的 1 条" in message for message in messages) == 3
+    assert any("o/r#0" in message for message in messages), "丢的是哪条要点名"
 
 
 def test_poll_watermark_defaults_and_updates():

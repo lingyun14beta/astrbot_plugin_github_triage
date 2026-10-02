@@ -1,4 +1,4 @@
-﻿# astrbot_plugin_github_triage
+# astrbot_plugin_github_triage
 
 [![CI](https://github.com/lingyun14beta/astrbot_plugin_github_triage/actions/workflows/ci.yml/badge.svg)](https://github.com/lingyun14beta/astrbot_plugin_github_triage/actions/workflows/ci.yml)
 
@@ -250,7 +250,7 @@ D:\code\AstrBot\astrbot\  ← 不要填这种子目录
 ## 测试
 
 ```bash
-python -m pytest -q          # 104 条用例
+python -m pytest -q          # 106 条用例
 python -m ruff check .       # 代码检查
 python -m ruff format --check .
 ```
@@ -277,6 +277,8 @@ ASTRBOT_ROOT=/path/to/AstrBot python -m pytest -q
 - 无 ETag 条件请求；429 / 5xx 只退避一次重试，仍失败的留到下一轮；
 - 轮询靠「全部成功 + 窗口没取满才推进水位，配合已处理表」避免漏报，代价是某仓库长期 403、
   或单仓库一轮超过 50 条更新时会反复重扫同一窗口（已处理表挡重复通知，不会重复打扰你）；
+- **待发草稿上限 20 条**：只出草稿不发布时，最旧的一条会被丢弃（日志里会点名），
+  `/gh list` 到上限也会提示；
 - 只做单页拉取：单个 PR 改动文件超过 100 个（GitHub 分页上限）时，列出的文件是前 100 个，
   材料里会标注，diff 本身仍是完整的。
 

@@ -2,19 +2,31 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
+
+logger = logging.getLogger("astrbot")
 
 SEEN_KEY = "seen_items"
 DRAFTS_KEY = "drafts"
 LAST_POLL_KEY = "last_poll_at"
 SEEN_LIMIT = 500
+DRAFTS_LIMIT = 20
 PUBLISHED_KEY = "published"
 PUBLISHED_LIMIT = 200
 
 
 def item_key(repo: str, number: int) -> str:
     return f"{repo}#{number}"
+
+
+def _sort_key(item: tuple[str, dict[str, Any]]) -> tuple[str, int]:
+    """草稿的「新旧」排序键：时间戳只到秒，同秒时用编号兜底。"""
+    key, value = item
+    created = str((value or {}).get("created_at") or "")
+    tail = key.rpartition("#")[2]
+    return created, int(tail) if tail.isdigit() else 0
 
 
 class StateStore:
@@ -63,7 +75,24 @@ class StateStore:
             "body": body,
             "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         }
+        data = self._trim_drafts(data)
         await self.plugin.put_kv_data(DRAFTS_KEY, data)
+
+    @staticmethod
+    def _trim_drafts(data: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        """草稿只留最近 ``DRAFTS_LIMIT`` 条。
+
+        草稿是「还没发的活儿」，丢掉不可逆，所以丢哪几条要留痕：日志里点名。
+        """
+        if len(data) <= DRAFTS_LIMIT:
+            return data
+        keep = dict(sorted(data.items(), key=_sort_key, reverse=True)[:DRAFTS_LIMIT])
+        dropped = [key for key in data if key not in keep]
+        logger.warning(
+            f"[gh-triage] 待发草稿超过 {DRAFTS_LIMIT} 条，已丢弃最旧的 "
+            f"{len(dropped)} 条：{'、'.join(dropped)}"
+        )
+        return keep
 
     async def get_draft(self, repo: str, number: int) -> dict[str, Any] | None:
         return (await self.drafts()).get(item_key(repo, number))

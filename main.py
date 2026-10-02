@@ -19,7 +19,7 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.star import Context, Star, StarTools
 
-from .gh import analyze, fetch, publish, skills
+from .gh import analyze, fetch, publish, skills, state
 from .gh.client import GitHubClient, GitHubError
 from .gh.skills import SkillMissing
 from .gh.state import StateStore
@@ -588,6 +588,11 @@ class GithubTriagePlugin(Star):
         tail = ""
         if published:
             tail = f"\n（已发布过 {len(published)} 条）"
+        if len(drafts) >= state.DRAFTS_LIMIT:
+            tail += (
+                f"\n（已达上限 {state.DRAFTS_LIMIT} 条：再出草稿会丢弃最旧的一条，"
+                "建议先 /gh post 或不用了就 /gh show 确认后忽略）"
+            )
         yield event.plain_result("待发草稿：\n" + "\n".join(lines) + tail)
 
     @gh_group.command("post")
